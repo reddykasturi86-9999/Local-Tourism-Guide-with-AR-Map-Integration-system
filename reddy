@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Local Tourism Guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    /* ========== THEME VARIABLES ========== */
+    :root {
+      --bg: #f5f5f5;
+      --surface: #ffffff;
+      --text: #1f2937;
+      --text-muted: #6b7280;
+      --primary: #1e3a8a;
+      --primary-contrast: #ffffff;
+      --border: #e5e7eb;
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
+      --map-filter: none;
+    }
+
+    html.dark {
+      --bg: #0f172a;
+      --surface: #111827;
+      --text: #e5e7eb;
+      --text-muted: #9ca3af;
+      --primary: #60a5fa;
+      --primary-contrast: #0b1220;
+      --border: #1f2937;
+      --shadow: 0 4px 12px rgba(0,0,0,0.35);
+      --map-filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+
+    /* ========== HEADER ========== */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      box-shadow: var(--shadow);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: var(--primary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    button, .btn {
+      background: var(--primary);
+      color: var(--primary-contrast);
+      border: none;
+      padding: 0.45rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.icon-btn {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem;
+      font-size: 1rem;
+    }
+
+    /* ========== AUTH SCREEN ========== */
+    #authScreen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    #authScreen.visible {
+      display: flex;
+    }
+
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      width: min(92vw, 360px);
+      box-shadow: var(--shadow);
+    }
+
+    .auth-card h2 {
+      margin-bottom: 0.75rem;
+      color: var(--primary);
+    }
+
+    .form-group {
+      margin-bottom: 0.75rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.45rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .auth-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    /* ========== MAIN LAYOUT ========== */
+    #app {
+      display: none;
+    }
+
+    #app.visible {
+      display: block;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ========== SEARCH BAR ========== */
+    .search-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .search-bar input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    /* ========== MAP ========== */
+    #map {
+      height: 70vh;
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      background: #ddd;
+      filter: var(--map-filter);
+      transition: filter 0.25s ease;
+    }
+
+    /* ========== INFO PANEL ========== */
+    .info-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 70vh;
+      overflow: auto;
+    }
+
+    .info-panel h2 {
+      font-size: 1.15rem;
+      color: var(--primary);
+    }
+
+    .info-panel p {
+      font-size: 0.92rem;
+      line-height: 1.4;
+      color: var(--text);
+    }
+
+    .place-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .fav-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .fav-btn.active {
+      background: #f59e0b;
+      border-color: #f59e0b;
+      color: #111827;
+    }
+
+    /* ========== FOOTER ========== */
+    footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- ========== AUTH SCREEN ========== -->
+  <div id="authScreen">
+    <div class="auth-card">
+      <h2 id="authTitle">Login</h2>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input id="username" type="text" placeholder="Enter username" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input id="password" type="password" placeholder="Enter password" />
+      </div>
+      <div class="auth-actions">
+        <button id="authSubmitBtn">Login</button>
+        <button id="authToggleBtn" class="secondary">Create account</button>
+      </div>
+      <p id="authError" style="color:#ef4444; font-size:0.85rem; margin-top:0.5rem;"></p>
+    </div>
+  </div>
+
+  <!-- ========== APP ========== -->
+  <div id="app">
+    <header>
+      <div class="brand">
+        🌍 Local Tourism Guide
+      </div>
+      <div class="header-actions">
+        <button id="themeToggleBtn" class="icon-btn" title="Toggle theme">
+          🌙
+        </button>
+        <span id="userLabel" style="font-size:0.85rem; color:var(--text-muted);"></span>
+        <button id="logoutBtn" class="secondary">Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <div>
+        <div class="search-bar">
+          <input id="searchInput" type="text" placeholder="Search places..." />
+          <button id="searchBtn">Search</button>
+        </div>
+        <div id="map"></div>
+      </div>
+
+      <section class="info-panel" id="infoPanel">
+        <h2 id="placeName">Select a place</h2>
+        <p id="placeDesc">Click on a marker to see details.</p>
+        <div class="place-meta" id="placeMeta"></div>
+        <button id="favBtn" class="fav-btn">★ Add to Favorites</button>
+        <button id="openArBtn" disabled>View in AR</button>
+        <div>
+          <h3 style="font-size:0.95rem; margin-top:0.5rem; color:var(--primary);">Your Favorites</h3>
+          <ul id="favList" style="margin-top:0.4rem; padding-left:1.1rem; font-size:0.9rem;"></ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      Built with Leaflet.js + vanilla JS. For demo purposes only (client-side auth).
+    </footer>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    // =========================
+    // DATA: Places (customize)
+    // =========================
+    const places = [
+      {
+        id: 1,
+        name: "City Museum",
+        lat: 28.6139,
+        lng: 77.2090,
+        description:
+          "A museum showcasing local history, art, and culture with guided tours.",
+        rating: 4.5,
+        arUrl: "ar.html?place=1"
+      },
+      {
+        id: 2,
+        name: "Old Fort",
+        lat: 28.6562,
+        lng: 77.2410,
+        description:
+          "Historic fort with impressive architecture and panoramic city views.",
+        rating: 4.7,
+        arUrl: "ar.html?place=2"
+      },
+      {
+        id: 3,
+        name: "Riverfront Park",
+        lat: 28.6304,
+        lng: 77.2177,
+        description:
+          "Scenic park along the river, perfect for walks, picnics, and photography.",
+        rating: 4.3,
+        arUrl: "ar.html?place=3"
+      },
+      {
+        id: 4,
+        name: "Heritage Market",
+        lat: 28.6400,
+        lng: 77.2100,
+        description:
+          "Traditional market with local crafts, street food, and cultural performances.",
+        rating: 4.2,
+        arUrl: "ar.html?place=4"
+      }
+    ];
+
+    // =========================
+    // AUTH (client-side demo)
+    // =========================
+    const authScreen = document.getElementById("authScreen");
+    const app = document.getElementById("app");
+    const authTitle = document.getElementById("authTitle");
+    const authSubmitBtn = document.getElementById("authSubmitBtn");
+    const authToggleBtn = document.getElementById("authToggleBtn");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const authError = document.getElementById("authError");
+    const userLabel = document.getElementById("userLabel");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    let isLoginMode = true;
+
+    function getCurrentUser() {
+      return localStorage.getItem("tourism_user") || null;
+    }
+
+    function setUser(user) {
+      if (!user) {
+        localStorage.removeItem("tourism_user");
+      } else {
+        localStorage.setItem("tourism_user", user);
+      }
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      const user = getCurrentUser();
+      if (user) {
+        authScreen.classList.remove("visible");
+        app.classList.add("visible");
+        userLabel.textContent = `Hi, ${user}`;
+        initMapAndFeatures();
+      } else {
+        authScreen.classList.add("visible");
+        app.classList.remove("visible");
+        userLabel.textContent = "";
+      }
+    }
+
+    authToggleBtn.addEventListener("click", () => {
+      isLoginMode = !isLoginMode;
+      authTitle.textContent = isLoginMode ? "Login" : "Create Account";
+      authSubmitBtn.textContent = isLoginMode ? "Login" : "Sign Up";
+      authToggleBtn.textContent = isLoginMode ? "Create account" : "Have an account? Login";
+      authError.textContent = "";
+      usernameInput.value = "";
+      passwordInput.value = "";
+    });
+
+    authSubmitBtn.addEventListener("click", () => {
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
+      authError.textContent = "";
+
+      if (!username || !password) {
+        authError.textContent = "Please enter both username and password.";
+        return;
+      }
+
+      if (isLoginMode) {
+        // Simple demo: any non-empty credentials are accepted
+        setUser(username);
+      } else {
+        // In a real app, you'd check if user exists, validate password rules, etc.
+        setUser(username);
+      }
+    });
+
+    logoutBtn.addEventListener("click", () => {
+      setUser(null);
+      // Clear map-related state if needed
+      window.location.reload();
+    });
+
+    // =========================
+    // THEME (dark/light)
+    // =========================
+    const themeToggleBtn = document.getElementById("themeToggleBtn");
+
+    function initTheme() {
+      const saved = localStorage.getItem("tourism_theme");
+      const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (saved === "dark" || (!saved && systemDark)) {
+        document.documentElement.classList.add("dark");
+        themeToggleBtn.textContent = "☀️";
+      } else {
+        document.documentElement.classList.remove("dark");
+        themeToggleBtn.textContent = "🌙";
+      }
+    }
+
+    themeToggleBtn.addEventListener("click", () => {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("tourism_theme", isDark ? "dark" : "light");
+      themeToggleBtn.textContent = isDark ? "☀️" : "🌙";
+    });
+
+    // =========================
+    // MAP & FEATURES
+    // =========================
+    let map;
+    let markers = [];
+    let selectedPlace = null;
+
+    const infoPanel = document.getElementById("infoPanel");
+    const placeNameEl = document.getElementById("placeName");
+    const placeDescEl = document.getElementById("placeDesc");
+    const placeMetaEl = document.getElementById("placeMeta");
+    const openArBtn = document.getElementById("openArBtn");
+    const favBtn = document.getElementById("favBtn");
+    const favList = document.getElementById("favList");
+    const searchInput = document.getElementById("searchInput");
+    const searchBtn = document.getElementById("searchBtn");
+
+    function getFavorites() {
+      const user = getCurrentUser();
+      if (!user) return [];
+      const raw = localStorage.getItem(`tourism_favs_${user}`);
+      return raw ? JSON.parse(raw) : [];
+    }
+
+    function setFavorites(ids) {
+      const user = getCurrentUser();
+      if (!user) return;
+      localStorage.setItem(`tourism_favs_${user}`, JSON.stringify(ids));
+      renderFavorites();
+    }
+
+    function toggleFavorite(id) {
+      const favs = getFavorites();
+      const idx = favs.indexOf(id);
+      if (idx === -1) {
+        favs.push(id);
+      } else {
+        favs.splice(idx, 1);
+      }
+      setFavorites(favs);
+      updateFavButton();
+    }
+
+    function renderFavorites() {
+      const favs = getFavorites();
+      const favPlaces = places.filter(p => favs.includes(p.id));
+      favList.innerHTML = "";
+      if (favPlaces.length === 0) {
+        favList.innerHTML = "<li>No favorites yet.</li>";
+        return;
+      }
+      favPlaces.forEach(p => {
+        const li = document.createElement("li");
+        li.textContent = p.name;
+        li.style.cursor = "pointer";
+        li.addEventListener("click", () => {
+          const marker = markers.find(m => m.place.id === p.id);
+          if (marker) {
+            marker.marker.fire("click");
+            map.flyTo([p.lat, p.lng], 14);
+          }
+        });
+        favList.appendChild(li);
+      });
+    }
+
+    function updateFavButton() {
+      if (!selectedPlace) {
+        favBtn.disabled = true;
+        favBtn.classList.remove("active");
+        favBtn.textContent = "★ Add to Favorites";
+        return;
+      }
+      const favs = getFavorites();
+      const isFav = favs.includes(selectedPlace.id);
+      favBtn.disabled = false;
+      if (isFav) {
+        favBtn.classList.add("active");
+        favBtn.textContent = "★ Remove from Favorites";
+      } else {
+        favBtn.classList.remove("active");
+        favBtn.textContent = "★ Add to Favorites";
+      }
+    }
+
+    favBtn.addEventListener("click", () => {
+      if (!selectedPlace) return;
+      toggleFavorite(selectedPlace.id);
+    });
+
+    function initMapAndFeatures() {
+      if (map) return; // already initialized
+
+      // Initialize map
+      map = L.map("map").setView([28.6139, 77.2090], 12);
+
+      // Light/dark-aware tiles
+      function getTileUrl() {
+        const isDark = document.documentElement.classList.contains("dark");
+        return isDark
+          ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+          : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+      }
+
+      const tiles = L.tileLayer(getTileUrl(), {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: "abcd",
+        maxZoom: 19
+      }).addTo(map);
+
+      // Re-render tiles on theme change
+      const observer = new MutationObserver(() => {
+        const newUrl = getTileUrl();
+        tiles.setUrl(newUrl);
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"]
+      });
+
+      // Add markers
+      places.forEach(place => {
+        const marker = L.marker([place.lat, place.lng]).addTo(map);
+        marker.bindPopup(`<b>${place.name}</b>`);
+        marker.on("click", () => {
+          selectedPlace = place;
+
+          placeNameEl.textContent = place.name;
+          placeDescEl.textContent = place.description;
+          placeMetaEl.textContent = `Rating: ${place.rating} ★`;
+          openArBtn.disabled = false;
+
+          openArBtn.onclick = () => {
+            window.open(place.arUrl, "_blank");
+          };
+
+          updateFavButton();
+          map.flyTo([place.lat, place.lng], 14);
+        });
+
+        markers.push({ place, marker });
+      });
+
+      // Search
+      function performSearch() {
+        const q = searchInput.value.trim().toLowerCase();
+        if (!q) {
+          // Reset view
+          map.setView([28.6139, 77.2090], 12);
+          markers.forEach(({ marker }) => marker.addTo(map));
+          return;
+        }
+        const matches = places.filter(p =>
+          p.name.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q)
+        );
+        if (matches.length === 0) {
+          alert("No places found.");
+          return;
+        }
+        // Show only matching markers
+        markers.forEach(({ marker }) => marker.removeFrom(map));
+        const group = new L.featureGroup();
+        matches.forEach(p => {
+          const m = L.marker([p.lat, p.lng]).addTo(map);
+          m.bindPopup(`<b>${p.name}</b>`);
+          m.on("click", () => {
+            selectedPlace = p;
+            placeNameEl.textContent = p.name;
+            placeDescEl.textContent = p.description;
+            placeMetaEl.textContent = `Rating: ${p.rating} ★`;
+            openArBtn.disabled = false;
+            openArBtn.onclick = () => {
+              window.open(p.arUrl, "_blank");
+            };
+            updateFavButton();
+            map.flyTo([p.lat, p.lng], 14);
+          });
+          group.addLayer(m);
+        });
+        map.fitBounds(group.getBounds(), { padding: [50, 50] });
+      }
+
+      searchBtn.addEventListener("click", performSearch);
+      searchInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") performSearch();
+      });
+
+      renderFavorites();
+    }
+
+    // =========================
+    // INIT
+    // =========================
+    initTheme();
+    updateAuthUI();
+  </script>
+
+  <!-- =========================
+       SIMPLE AR PAGE (inline)
+       To keep everything in one file,
+       we use a data URL for AR.
+       ========================= -->
+  <script>
+    // Create a simple AR page as a separate blob and expose via ar.html?place=X
+    // This is optional; you can also create ar.html separately.
+    const arHtmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AR View - Local Tourism Guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"><\/script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"><\/script>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: system-ui, sans-serif; }
+    .overlay {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(0,0,0,0.6); color: #fff;
+      padding: 0.5rem 0.75rem; border-radius: 6px;
+      font-size: 0.9rem; z-index: 10;
+    }
+    .overlay a { color: #93c5fd; text-decoration: none; margin-left: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <span id="arTitle">AR View</span>
+    <a href="#" onclick="history.back(); return false;">Back to map</a>
+  </div>
+
+  <a-scene
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false;"
+    renderer="logarithmicDepthBuffer: true;"
+    vr-mode-ui="enabled: false"
+  >
+    <a-marker preset="hiro">
+      <a-box position="0 0.5 0" scale="0.5 0.5 0.5" color="#4CC3D9"></a-box>
+      <a-text
+        value="Tourist Spot"
+        align="center"
+        position="0 1.2 0"
+        scale="1.5 1.5 1.5"
+        color="#FFF"
+      ></a-text>
+    </a-marker>
+    <a-entity camera></a-entity>
+  </a-scene>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const placeId = params.get("place");
+    const placeData = {
+      "1": { name: "City Museum", color: "#4CC3D9" },
+      "2": { name: "Old Fort", color: "#EF2D5E" },
+      "3": { name: "Riverfront Park", color: "#7BC8A4" },
+      "4": { name: "Heritage Market", color: "#F59E0B" }
+    };
+    const place = placeData[placeId] || { name: "Tourist Spot", color: "#4CC3D9" };
+    document.getElementById("arTitle").textContent = "AR: " + place.name;
+    const scene = document.querySelector("a-scene");
+    if (!scene) return;
+    const marker = scene.querySelector("a-marker");
+    const box = marker.querySelector("a-box");
+    const text = marker.querySelector("a-text");
+    box.setAttribute("color", place.color);
+    text.setAttribute("value", place.name);
+  <\/script>
+</body>
+</html>
+    `.trim();
+
+    // Register a fake "ar.html" via a service worker-like trick is complex in one file,
+    // so instead we override window.open for ar.html to open a blob URL.
+    const originalOpen = window.open;
+    window.open = function(url, target) {
+      if (url && url.startsWith("ar.html")) {
+        const blob = new Blob([arHtmlContent], { type: "text/html" });
+        const blobUrl = URL.createObjectURL(blob);
+        return originalOpen.call(window, blobUrl, target);
+      }
+      return originalOpen.call(window, url, target);
+    };
+  </script>
+</body>
+</html>
